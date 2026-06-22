@@ -27,6 +27,18 @@ go.work.sum
 # env file
 .env
 
+# Go binaries
+loader/loader
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Datos locales (parquets raw y procesados)
+data/raw dataset/
+data/processed/
+
 # Editor/IDE
 # .idea/
 # .vscode/
