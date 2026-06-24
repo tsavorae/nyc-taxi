@@ -4,7 +4,7 @@ services:
     build: ./ml-node
     environment:
       - NODE_ID=1
-      - DATA_PARQUET=/data/processed/yellow_tripdata_2026_clean.parquet
+      - DATA_PARQUET=/data/processed/clean_data.csv
     volumes:
       - ./data:/data:ro
     networks:
@@ -15,7 +15,7 @@ services:
     build: ./ml-node
     environment:
       - NODE_ID=2
-      - DATA_PARQUET=/data/processed/yellow_tripdata_2026_clean.parquet
+      - DATA_PARQUET=/data/processed/clean_data.csv
     volumes:
       - ./data:/data:ro
     networks:
@@ -26,7 +26,7 @@ services:
     build: ./ml-node
     environment:
       - NODE_ID=3
-      - DATA_PARQUET=/data/processed/yellow_tripdata_2026_clean.parquet
+      - DATA_PARQUET=/data/processed/clean_data.csv
     volumes:
       - ./data:/data:ro
     networks:
@@ -37,7 +37,7 @@ services:
     build: ./ml-node
     environment:
       - NODE_ID=4
-      - DATA_PARQUET=/data/processed/yellow_tripdata_2026_clean.parquet
+      - DATA_PARQUET=/data/processed/clean_data.csv
     volumes:
       - ./data:/data:ro
     networks:

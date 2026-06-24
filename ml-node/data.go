@@ -1,19 +1,11 @@
 package main
 
 import (
+	"encoding/csv"
 	"log"
 	"os"
-
-	"github.com/parquet-go/parquet-go"
+	"strconv"
 )
-
-type ParquetRow struct {
-	TripDistance    float64 `parquet:"trip_distance"`
-	PickupHour      int32   `parquet:"pickup_hour"`
-	PickupDayOfWeek int32   `parquet:"pickup_day_of_week"`
-	PUBorough       string  `parquet:"pu_borough"`
-	TripDuration    int64   `parquet:"trip_duration_minutes"`
-}
 
 // boroughToFloat encodes the borough string as a numeric feature.
 var boroughIndex = map[string]float64{
@@ -32,51 +24,29 @@ func loadData(path string) ([]Sample, error) {
 	}
 	defer f.Close()
 
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
+	r := csv.NewReader(f)
+	r.Read() // skip header
 
-	pf, err := parquet.OpenFile(f, stat.Size())
-	if err != nil {
-		return nil, err
-	}
-
-	reader := parquet.NewGenericReader[ParquetRow](pf)
-	defer reader.Close()
-
-	batch := make([]ParquetRow, 1000)
 	var samples []Sample
-
 	for {
-		n, err := reader.Read(batch)
-		for _, row := range batch[:n] {
-			dur := float64(row.TripDuration)
-			if dur <= 0 || dur > 180 {
-				continue
-			}
-			if row.TripDistance <= 0 {
-				continue
-			}
-			borough, ok := boroughIndex[row.PUBorough]
-			if !ok {
-				continue // skip unknown boroughs
-			}
-			samples = append(samples, Sample{
-				Features: [4]float64{
-					row.TripDistance,
-					float64(row.PickupHour),
-					float64(row.PickupDayOfWeek),
-					borough,
-				},
-				Target: dur,
-			})
-		}
+		rec, err := r.Read()
 		if err != nil {
 			break
 		}
-	}
+		dist, _ := strconv.ParseFloat(rec[0], 64)
+		hour, _ := strconv.ParseFloat(rec[1], 64)
+		dow, _ := strconv.ParseFloat(rec[2], 64)
+		borough := boroughIndex[rec[3]]
+		dur, _ := strconv.ParseFloat(rec[4], 64)
 
-	log.Printf("parquet loaded: %d valid samples\n", len(samples))
+		if dur <= 0 || dur > 180 || dist <= 0 {
+			continue
+		}
+		samples = append(samples, Sample{
+			Features: [4]float64{dist, hour, dow, borough},
+			Target:   dur,
+		})
+	}
+	log.Printf("data loaded: %d valid samples\n", len(samples))
 	return samples, nil
 }
