@@ -3,9 +3,15 @@ package main
 import "math/rand"
 
 // trainTree builds one tree on a bootstrap sample of the dataset.
+
 func trainTree(samples []Sample, maxDepth, maxFeatures int) Tree {
+	// Cap bootstrap at 100k samples — standard RF subsampling
 	n := len(samples)
-	boot := make([]Sample, n)
+	bootSize := 100000
+	if n < bootSize {
+		bootSize = n
+	}
+	boot := make([]Sample, bootSize)
 	for i := range boot {
 		boot[i] = samples[rand.Intn(n)]
 	}
