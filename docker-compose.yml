@@ -1,0 +1,69 @@
+services:
+
+  ml-node-1:
+    build: ./ml-node
+    environment:
+      - NODE_ID=1
+      - DATA_PARQUET=/data/processed/clean_data.csv
+    volumes:
+      - ./data:/data:ro
+    networks:
+      taxi_network:
+        ipv4_address: 172.20.0.2
+
+  ml-node-2:
+    build: ./ml-node
+    environment:
+      - NODE_ID=2
+      - DATA_PARQUET=/data/processed/clean_data.csv
+    volumes:
+      - ./data:/data:ro
+    networks:
+      taxi_network:
+        ipv4_address: 172.20.0.3
+
+  ml-node-3:
+    build: ./ml-node
+    environment:
+      - NODE_ID=3
+      - DATA_PARQUET=/data/processed/clean_data.csv
+    volumes:
+      - ./data:/data:ro
+    networks:
+      taxi_network:
+        ipv4_address: 172.20.0.4
+
+  ml-node-4:
+    build: ./ml-node
+    environment:
+      - NODE_ID=4
+      - DATA_PARQUET=/data/processed/clean_data.csv
+    volumes:
+      - ./data:/data:ro
+    networks:
+      taxi_network:
+        ipv4_address: 172.20.0.5
+
+  api:
+    build: ./api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data:ro
+    environment:
+      - NODES=172.20.0.2:9051,172.20.0.3:9051,172.20.0.4:9051,172.20.0.5:9051
+    networks:
+      taxi_network:
+        ipv4_address: 172.20.0.10
+    depends_on:
+      - ml-node-1
+      - ml-node-2
+      - ml-node-3
+      - ml-node-4
+
+networks:
+  taxi_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.20.0.0/16"
