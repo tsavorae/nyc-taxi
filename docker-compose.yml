@@ -48,6 +48,8 @@ services:
     build: ./api
     ports:
       - "8080:8080"
+    volumes:
+      - ./data:/data:ro
     environment:
       - NODES=172.20.0.2:9051,172.20.0.3:9051,172.20.0.4:9051,172.20.0.5:9051
     networks:

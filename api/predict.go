@@ -1,6 +1,21 @@
 package main
 
-import "math"
+import (
+	"encoding/csv"
+	"math"
+	"os"
+	"strconv"
+)
+
+// boroughToFloat encodes the borough string as a numeric feature.
+var boroughIndex = map[string]float64{
+	"Bronx":         0,
+	"Brooklyn":      1,
+	"EWR":           2,
+	"Manhattan":     3,
+	"Queens":        4,
+	"Staten Island": 5,
+}
 
 func predictTree(tree Tree, features [4]float64) float64 {
 	if len(tree.Nodes) == 0 {
@@ -62,4 +77,32 @@ func calculateMetrics(forest []Tree, testSet []TestSample) (mae, rmse, r2 float6
 		r2 = 1 - (sumSE / ssTot)
 	}
 	return
+}
+
+func loadTestSet(path string) ([]TestSample, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	r.Read() // skip header
+	var samples []TestSample
+	for {
+		rec, err := r.Read()
+		if err != nil {
+			break
+		}
+		dist, _ := strconv.ParseFloat(rec[0], 64)
+		hour, _ := strconv.ParseFloat(rec[1], 64)
+		dow, _ := strconv.ParseFloat(rec[2], 64)
+		bor := boroughIndex[rec[3]]
+		dur, _ := strconv.ParseFloat(rec[4], 64)
+		samples = append(samples, TestSample{
+			Features: [4]float64{dist, hour, dow, bor},
+			Target:   dur,
+		})
+	}
+	return samples, nil
 }

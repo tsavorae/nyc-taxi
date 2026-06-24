@@ -18,6 +18,7 @@ var (
 	metrics TrainingMetrics
 	nodes   []string
 )
+var testSet []TestSample
 
 func handleTrain(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -47,9 +48,8 @@ func handleTrain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: replace nil with your real test set loaded from E1
 	// Example: mae, rmse, r2 := calculateMetrics(f, testSet)
-	mae, rmse, r2 := calculateMetrics(f, nil)
+	mae, rmse, r2 := calculateMetrics(f, testSet)
 
 	mu.Lock()
 	forest = f
@@ -121,6 +121,12 @@ func handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	var err error
+	testSet, err = loadTestSet("/data/processed/test_data.csv")
+	if err != nil {
+		log.Println("warning: test set not loaded:", err)
+	}
+
 	nodesEnv := os.Getenv("NODES")
 	if nodesEnv == "" {
 		nodesEnv = "172.20.0.2:9051,172.20.0.3:9051,172.20.0.4:9051,172.20.0.5:9051"
