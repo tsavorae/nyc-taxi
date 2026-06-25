@@ -44,6 +44,27 @@ services:
       taxi_network:
         ipv4_address: 172.20.0.5
 
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=secret
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      taxi_network:
+        ipv4_address: 172.20.0.20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      taxi_network:
+        ipv4_address: 172.20.0.21
+
   api:
     build: ./api
     ports:
@@ -52,6 +73,9 @@ services:
       - ./data:/data:ro
     environment:
       - NODES=172.20.0.2:9051,172.20.0.3:9051,172.20.0.4:9051,172.20.0.5:9051
+      - MONGO_URI=mongodb://admin:secret@172.20.0.20:27017
+      - REDIS_ADDR=172.20.0.21:6379
+      - JWT_SECRET=nyc-taxi-cluster-secret-key
     networks:
       taxi_network:
         ipv4_address: 172.20.0.10
@@ -60,6 +84,11 @@ services:
       - ml-node-2
       - ml-node-3
       - ml-node-4
+      - mongo
+      - redis
+
+volumes:
+  mongo_data:
 
 networks:
   taxi_network:

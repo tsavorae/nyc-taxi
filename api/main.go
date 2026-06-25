@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var (
@@ -42,6 +44,12 @@ func handleTrain(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("POST /train — %d trees across %d nodes\n", req.TotalTrees, len(nodes))
 
+	// Broadcast training start to WebSocket clients
+	hub.Broadcast(WSEvent{Type: "train_start", Data: TrainStartEvent{
+		TotalTrees: req.TotalTrees,
+		NumNodes:   len(nodes),
+	}})
+
 	f, infos, dur, err := distributeTraining(nodes, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -50,6 +58,15 @@ func handleTrain(w http.ResponseWriter, r *http.Request) {
 
 	// Example: mae, rmse, r2 := calculateMetrics(f, testSet)
 	mae, rmse, r2 := calculateMetrics(f, testSet)
+
+	// Broadcast per-node results
+	for _, info := range infos {
+		hub.Broadcast(WSEvent{Type: "node_done", Data: NodeDoneEvent{
+			NodeID: info.NodeID,
+			Trees:  info.Trees,
+			DurMS:  info.DurMS,
+		}})
+	}
 
 	mu.Lock()
 	forest = f
@@ -64,6 +81,33 @@ func handleTrain(w http.ResponseWriter, r *http.Request) {
 		PerNode:    infos,
 	}
 	mu.Unlock()
+
+	// Store training record in MongoDB
+	claims := getClaims(r)
+	if claims != nil {
+		uid, _ := primitive.ObjectIDFromHex(claims.UserID)
+		rec := &TrainRecord{
+			UserID:     uid,
+			TotalTrees: len(f),
+			MAE:        mae,
+			RMSE:       rmse,
+			R2:         r2,
+			DurTotalMS: dur,
+			PerNode:    infos,
+		}
+		if err := insertTrainRecord(rec); err != nil {
+			log.Println("failed to store train record:", err)
+		}
+	}
+
+	// Broadcast training done
+	hub.Broadcast(WSEvent{Type: "train_done", Data: TrainDoneEvent{
+		TotalTrees: len(f),
+		DurTotalMS: dur,
+		MAE:        mae,
+		RMSE:       rmse,
+		R2:         r2,
+	}})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metrics)
@@ -120,7 +164,35 @@ func handleMetrics(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(m)
 }
 
+func handleHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	claims := getClaims(r)
+	if claims == nil {
+		http.Error(w, `{"error":"no claims"}`, http.StatusUnauthorized)
+		return
+	}
+
+	uid, _ := primitive.ObjectIDFromHex(claims.UserID)
+	records, err := listTrainHistory(uid, 50)
+	if err != nil {
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(records)
+}
+
 func main() {
+	// Infrastructure
+	connectMongo()
+	connectRedis()
+	initAuth()
+
 	var err error
 	testSet, err = loadTestSet("/data/processed/test_data.csv")
 	if err != nil {
@@ -134,12 +206,22 @@ func main() {
 	nodes = strings.Split(nodesEnv, ",")
 	log.Println("registered nodes:", nodes)
 
-	http.HandleFunc("/train", handleTrain)
-	http.HandleFunc("/predict", handlePredict)
-	http.HandleFunc("/metrics", handleMetrics)
+	// Public endpoints
+	http.HandleFunc("/register", handleRegister)
+	http.HandleFunc("/login", handleLogin)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
+
+	// WebSocket (public — auth via query param if needed)
+	http.HandleFunc("/ws", handleWS)
+
+	// Protected endpoints
+	http.HandleFunc("/train", authMiddleware(handleTrain))
+	http.HandleFunc("/predict", authMiddleware(handlePredict))
+	http.HandleFunc("/metrics", authMiddleware(handleMetrics))
+	http.HandleFunc("/logout", authMiddleware(handleLogout))
+	http.HandleFunc("/history", authMiddleware(handleHistory))
 
 	log.Println("api listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
