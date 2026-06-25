@@ -82,6 +82,9 @@ func handleTrain(w http.ResponseWriter, r *http.Request) {
 	}
 	mu.Unlock()
 
+	// New model invalidates previously cached predictions
+	invalidatePredictionCache()
+
 	// Store training record in MongoDB
 	claims := getClaims(r)
 	if claims != nil {
@@ -141,12 +144,27 @@ func handlePredict(w http.ResponseWriter, r *http.Request) {
 		req.PUBorough,
 	}
 
+	// Check Redis cache for a precalculated prediction
+	if cached, ok := getCachedPrediction(features); ok {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"trip_duration_min": math.Round(cached*100) / 100,
+			"trees_used":        len(f),
+			"cached":            true,
+		})
+		return
+	}
+
 	pred := predictForest(f, features)
+
+	// Store the result in Redis for future requests
+	setCachedPrediction(features, pred)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"trip_duration_min": math.Round(pred*100) / 100,
 		"trees_used":        len(f),
+		"cached":            false,
 	})
 }
 

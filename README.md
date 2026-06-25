@@ -19,7 +19,7 @@ data/ parquets
 
 - **Go** — API, coordinador del cluster, nodos ML
 - **MongoDB** — almacena usuarios y historial de entrenamientos
-- **Redis** — blacklist de tokens JWT revocados (logout)
+- **Redis** — caché de predicciones precalculadas (TTL 1h, se invalida al re-entrenar) + blacklist de tokens JWT revocados
 - **WebSockets** — transmite métricas de entrenamiento en tiempo real
 - **JWT** — autenticación con Bearer tokens (24h TTL)
 
